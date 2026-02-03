@@ -353,6 +353,12 @@ Verify connection:
 claude mcp list
 ```
 
+**IMPORTANT: After adding or modifying MCP server configuration in `.claude.json`:**
+- **Option 1:** Start a new chat (existing chats use cached connections)
+- **Option 2:** Restart Claude Code completely
+
+MCP connections are cached per chat session. If you modify the configuration and don't see changes, you must either create a new chat or restart Claude Code. This can save hours of debugging!
+
 ### OAuth Environment Variables
 
 | Variable | Required | Default | Description |
@@ -401,17 +407,6 @@ docker compose down && docker compose up -d
 Done! Access at `https://yarmcp.your-domain.com/mcp`
 
 </details>
-
-### Claude Code Example
-
-```bash
-claude mcp add --transport http yarmcp https://your-yarmcp-url.com --header "Authorization: Bearer your-auth-token-here"
-```
-
-Verify connection:
-```bash
-claude mcp list
-```
 
 ## AI Documentation Integration
 
