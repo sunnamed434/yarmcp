@@ -1,0 +1,128 @@
+## YARMCP - Library Source Code
+
+**CRITICAL: AI training data is ~1 year outdated. Always verify external library APIs with YARMCP before implementing.**
+
+This project uses YARMCP to access current source code of external libraries, avoiding outdated assumptions.
+
+### Quick Reference
+
+Available MCP tools:
+- `mcp__yarmcp__list_repos()` - List all configured repos
+- `mcp__yarmcp__get_repo_info(repo)` - Get repo metadata + last commit
+- `mcp__yarmcp__search_code(repo, pattern)` - Search code (ripgrep regex)
+- `mcp__yarmcp__read_file(repo, path)` - Read file content
+- `mcp__yarmcp__list_files(repo, path?)` - List directory contents
+- `mcp__yarmcp__get_readme(repo)` - Quick README access
+
+### When to Read This File in Detail
+
+Read the full workflows section below if you need to:
+- **Plan an implementation** involving multiple external libraries (see Workflow 3)
+- **Verify an API** you found via web search to ensure it matches current code (see Workflow 2)
+- **Optimize searches** for large repos (React, TypeScript, .NET, etc.)
+- **Understand search strategies** and repo navigation patterns
+
+### Basic Pattern
+
+Before implementing a feature using external libraries:
+
+1. **Check what's available**: `mcp__yarmcp__list_repos()` - see if library is configured
+2. **Search for patterns**: `mcp__yarmcp__search_code(repo, "pattern")` - find relevant code
+3. **Read files**: `mcp__yarmcp__read_file(repo, "path")` - examine actual implementation
+4. **Implement based on current code** - not training data assumptions
+
+**If library NOT in YARMCP:** Use training data as baseline, but note it may be 1+ year outdated.
+
+## Workflows
+
+### Workflow 1: Known library question
+```
+User: "How do I use feature X in React 19?"
+AI:
+1. Check if "react" is available via list_repos()
+2. search_code("react", "feature X")
+3. read_file("react", "packages/react/src/...")
+4. Provide accurate implementation based on current code
+```
+
+### Workflow 2: Found solution via web search
+```
+User: "How do I solve problem X?"
+AI:
+1. Do web search, find library Y solves this
+2. Check if library Y is in YARMCP via list_repos()
+3. If available in YARMCP:
+   - Search for relevant patterns: search_code("library-y", "pattern")
+   - Verify example code matches current implementation
+   - Implement based on actual current code, not web examples
+4. If NOT in YARMCP:
+   - Use web example as starting point
+   - Ask user: "Want accurate implementation? Add library Y to YARMCP repos.yaml"
+   - Proceed with caution noting API may have changed
+```
+
+### Workflow 3: Planning implementation
+```
+User: "Plan how to implement feature Z"
+AI:
+1. Analyze requirements, identify needed libraries
+2. Check which libraries are in YARMCP via list_repos()
+3. Create initial plan using training data for libraries not in YARMCP
+4. For libraries IN YARMCP: study actual APIs via search_code() and read_file()
+5. Update plan with accurate implementation details from YARMCP
+6. For missing libraries:
+   - Offer option to add to YARMCP for accuracy
+   - Or proceed with training data + caveat about potential API changes
+7. Execute with verified APIs for YARMCP libraries, caution for others
+```
+
+## MCP Tools
+
+```
+list_repos()                        # List all configured repos
+get_repo_info("repo")               # Get repo metadata + last commit
+read_file("repo", "path")           # Read file content
+search_code("repo", "pattern")      # Search code (ripgrep regex)
+list_files("repo", "path?")         # List directory contents
+tree("repo", "path?", depth?, pattern?) # Formatted directory tree view
+get_readme("repo")                  # Quick README access
+get_yarmcp_usage_guide()            # Built-in documentation with usage patterns
+```
+
+## Best Practices
+
+### When to Use YARMCP vs Training Data
+- **Use YARMCP for**: Current APIs, implementation details, recent changes
+- **Use training data for**: General concepts, patterns, quick answers (then verify with YARMCP if unsure)
+- **Hybrid approach**: Use training data to guide search, then verify with YARMCP for accuracy
+
+### Efficient Context Usage
+- For 10-20 repos: `list_repos()` is fine to understand what's available
+- For 100+ repos: Ask user which repos are relevant before exploring
+- Use targeted searches instead of broad directory listing when possible
+
+### Search Strategies
+- Use `search_code()` for finding specific patterns or function definitions
+- Use `list_files()` with patterns to find specific file types (e.g., `*.ts`)
+- Read README.md first to understand repo structure and organization
+- Use regex patterns in searches for more precise results
+- If repo has `yarmcp/CLAUDE.md`, read it for navigation guidance
+
+### Working with Large Repos
+For huge repos (React, TypeScript, etc.):
+- Use specific searches: `search_code("react", "useEffect")`
+- Target specific directories: `list_files("react", "packages/react")`
+- Don't try to explore entire repo structure at once
+- Check for `yarmcp/CLAUDE.md` - it maps the repo structure for efficient navigation
+
+## Notes
+
+- MCP tools are stateless - no concept of "current directory"
+- Always specify full paths relative to repo root
+- Path traversal is blocked for security
+- All searches use ripgrep (supports regex)
+- Repos auto-update every 6 hours
+
+---
+
+**Remember:** This file changes how you approach development. Don't guess APIs - verify them using YARMCP tools first.

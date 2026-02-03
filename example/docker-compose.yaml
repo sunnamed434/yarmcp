@@ -1,0 +1,83 @@
+services:
+  mcp:
+    # Docker Hub image (also available on GHCR: ghcr.io/sunnamed434/yarmcp-mcp:latest)
+    image: "sunnamed434/yarmcp-mcp:latest"
+    restart: unless-stopped
+    environment:
+      # Bearer token for MCP authentication (simple method for Claude Desktop, Claude Code CLI)
+      # Generate with: openssl rand -hex 32
+      BEARER_AUTH_TOKEN: "${BEARER_AUTH_TOKEN}"
+      YARMCP_PORT: "9742"
+      # OAuth 2.1 settings (for Claude.ai web, ChatGPT, Cursor, etc.)
+      OAUTH_ENABLED: "true"
+      OAUTH_CLIENT_ID: "${OAUTH_CLIENT_ID}"
+      OAUTH_CLIENT_SECRET: "${OAUTH_CLIENT_SECRET}"
+      OAUTH_JWT_SECRET: "${OAUTH_JWT_SECRET}"
+      OAUTH_TOKEN_EXPIRY: "${OAUTH_TOKEN_EXPIRY:-2592000}"
+      OAUTH_ALLOW_DCR: "true"
+      # Optional: Set a password for the consent screen
+      # OAUTH_AUTHORIZE_PASSWORD: "${OAUTH_AUTHORIZE_PASSWORD}"
+    ports:
+      - "9742:9742"
+    volumes:
+      - type: "bind"
+        target: "/opt/yarmcp/config"
+        source: "${MCP_BINDMOUNT_0}"
+        read_only: true
+      - type: "bind"
+        target: "/opt/yarmcp/repos"
+        source: "${MCP_BINDMOUNT_1}"
+        read_only: true
+      - type: "bind"
+        target: "/opt/yarmcp/data"
+        source: "${MCP_BINDMOUNT_2}"
+        read_only: false
+    networks:
+      - "yarmcp-network"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "2G"
+        reservations:
+          cpus: "0.5"
+          memory: "512M"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 9742)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  updater:
+    # Docker Hub image (also available on GHCR: ghcr.io/sunnamed434/yarmcp-updater:latest)
+    image: "sunnamed434/yarmcp-updater:latest"
+    restart: unless-stopped
+    environment:
+      UPDATE_SCHEDULE: "${UPDATE_SCHEDULE:-0 */6 * * *}"
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+    volumes:
+      - type: "bind"
+        target: "/opt/yarmcp/config"
+        source: "${UPDATER_BINDMOUNT_0}"
+        read_only: true
+      - type: "bind"
+        target: "/opt/yarmcp/repos"
+        source: "${UPDATER_BINDMOUNT_1}"
+        read_only: false
+      - type: "bind"
+        target: "/home/updater/.ssh"
+        source: "${UPDATER_BINDMOUNT_2}"
+        read_only: true
+    networks:
+      - "yarmcp-network"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1G"
+        reservations:
+          cpus: "0.25"
+          memory: "256M"
+networks:
+  yarmcp-network:
+    driver: "bridge"

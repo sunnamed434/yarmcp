@@ -1,0 +1,62 @@
+# YARMCP Repository Configuration
+#
+# This file defines which repositories to clone and keep updated.
+# Each repository will be accessible via the MCP server tools.
+
+repos:
+  # Example: AI documentation (using default branch)
+  - name: docs
+    url: https://github.com/youruser/ai-docs.git
+    auto_update: true
+    description: AI documentation (AI.md) - helps AI understand your setup
+
+  # Example: React library with specific branch
+  - name: react
+    url: https://github.com/facebook/react.git
+    branch: main
+    auto_update: true
+    description: React library source code and documentation
+
+  # Example: TypeScript compiler
+  - name: typescript
+    url: https://github.com/microsoft/TypeScript.git
+    branch: main
+    auto_update: true
+    description: TypeScript compiler and language service
+
+  # Example: Vue.js framework
+  - name: vue
+    url: https://github.com/vuejs/core.git
+    branch: main
+    auto_update: true
+    description: Vue.js 3 core framework
+
+  # Example: .NET Aspire deployment tools
+  - name: aspire-ssh-deploy
+    url: https://github.com/davidfowl/aspire-ssh-deploy.git
+    branch: main
+    auto_update: true
+    description: Aspire SSH deployment utilities
+
+  # Example: .NET Aspire documentation
+  - name: docs-aspire
+    url: https://github.com/dotnet/docs-aspire.git
+    branch: main
+    auto_update: true
+    description: .NET Aspire documentation
+
+  # Example: Private repository with SSH authentication
+  # - name: my-private-repo
+  #   url: git@github.com:youruser/private-repo.git
+  #   branch: main
+  #   private: true
+  #   auto_update: true
+  #   description: Private company repository
+
+# Field reference:
+# - name: Unique identifier, used as directory name (required)
+# - url: Git clone URL - HTTPS or SSH (required)
+# - branch: Specific branch to track (optional, defaults to repo's current branch)
+# - auto_update: Auto-pull updates on schedule (optional, default: true)
+# - private: Mark repository as private (optional, default: false)
+# - description: Human-readable description (optional)

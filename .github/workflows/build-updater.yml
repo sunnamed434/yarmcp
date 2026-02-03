@@ -1,0 +1,26 @@
+name: Build Updater
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'updater/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/docker-build-push
+        with:
+          service_name: yarmcp-updater
+          context_path: ./updater
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}

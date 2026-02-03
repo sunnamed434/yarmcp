@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: yarmcp-mcp
+            context: ./mcp-server
+          - service: yarmcp-updater
+            context: ./updater
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: vars.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Release version: $TAG_NAME"
+
+      - name: Prepare image list
+        id: images
+        run: |
+          IMAGES="ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}"
+          if [ -n "${{ vars.DOCKERHUB_USERNAME }}" ]; then
+            IMAGES="${IMAGES}"$'\n'"${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.service }}"
+          fi
+          echo "images<<EOF" >> $GITHUB_OUTPUT
+          echo "$IMAGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.images.outputs.images }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=stable
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=${{ matrix.service }}
+            org.opencontainers.image.description=YARMCP - Yet Another Repo MCP
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TYPE=release
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: true
+          # Check if version contains hyphen (indicates prerelease: alpha, beta, rc, etc.)
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+          body: |
+            ## Docker Images
+
+            This release is available on Docker Hub and GitHub Container Registry:
+
+            ### Docker Hub (recommended)
+            ```bash
+            docker pull ${{ vars.DOCKERHUB_USERNAME || 'sunnamed434' }}/yarmcp-mcp:${{ steps.version.outputs.tag }}
+            docker pull ${{ vars.DOCKERHUB_USERNAME || 'sunnamed434' }}/yarmcp-updater:${{ steps.version.outputs.tag }}
+            ```
+
+            ### GitHub Container Registry (also available)
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-mcp:${{ steps.version.outputs.tag }}
+            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-updater:${{ steps.version.outputs.tag }}
+            ```
+
+            ## Installation
+
+            See [example/README.md](example/README.md) for full deployment instructions.
