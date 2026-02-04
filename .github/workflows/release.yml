@@ -4,13 +4,16 @@ on:
   push:
     tags:
       - '*'
+  release:
+    types: [published]
 
 permissions:
   contents: write
   packages: write
 
 jobs:
-  build-and-release:
+  build-and-test:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,8 +27,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Get version
+        id: version
+        uses: ./.github/actions/get-version
+
+      - name: Build, test and push Docker image to GHCR
+        uses: ./.github/actions/docker-build-push
+        with:
+          service_name: ${{ matrix.service }}
+          context_path: ${{ matrix.context }}
+          ghcr_token: ${{ secrets.GITHUB_TOKEN }}
+          build_mode: release
+          docker_tag: ${{ steps.version.outputs.docker_tag }}
+          full_version: ${{ steps.version.outputs.full_version }}
+          build_args: |
+            VERSION=${{ steps.version.outputs.full_version }}
+            BUILD_TYPE=release
+
+  create-draft-release:
+    if: github.event_name == 'push'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get version
+        id: version
+        uses: ./.github/actions/get-version
+
+      - name: Create GitHub Release (Draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: true
+          prerelease: ${{ steps.version.outputs.is_prerelease == 'true' }}
+          body: |
+            ## Docker Images
+
+            Available on GHCR (version `${{ steps.version.outputs.docker_tag }}`):
+
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-mcp:${{ steps.version.outputs.docker_tag }}
+            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-updater:${{ steps.version.outputs.docker_tag }}
+            ```
+
+            After this release is published, images will also be available on Docker Hub.
+
+            ## Installation
+
+            See [example/README.md](example/README.md) for deployment instructions.
+
+  publish-tags:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: yarmcp-mcp
+          - service: yarmcp-updater
+
+    steps:
+      - name: Checkout code at release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Get version
+        id: version
+        uses: ./.github/actions/get-version
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -41,91 +111,70 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version from tag
-        id: version
+      - name: Pull tested image from GHCR
         run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "Release version: $TAG_NAME"
+          SOURCE="ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:${{ steps.version.outputs.docker_tag }}"
+          echo "Pulling ${SOURCE}"
+          docker pull "${SOURCE}"
+        shell: bash
 
-      - name: Prepare image list
-        id: images
+      - name: Tag and push images
+        shell: bash
         run: |
-          IMAGES="ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}"
-          if [ -n "${{ vars.DOCKERHUB_USERNAME }}" ]; then
-            IMAGES="${IMAGES}"$'\n'"${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.service }}"
+          DOCKER_TAG="${{ steps.version.outputs.docker_tag }}"
+          IS_PRERELEASE="${{ steps.version.outputs.is_prerelease }}"
+          SERVICE="${{ matrix.service }}"
+
+          SOURCE_IMAGE="ghcr.io/${{ github.repository_owner }}/${SERVICE}:${DOCKER_TAG}"
+          GHCR_IMAGE="ghcr.io/${{ github.repository_owner }}/${SERVICE}"
+          DOCKERHUB_USERNAME="${{ vars.DOCKERHUB_USERNAME }}"
+          DOCKERHUB_IMAGE="${DOCKERHUB_USERNAME}/${SERVICE}"
+
+          # Helper: tag and push
+          push_tag() {
+            local TARGET_IMAGE="$1"
+            local TAG="$2"
+            echo "  Pushing ${TARGET_IMAGE}:${TAG}"
+            docker tag "${SOURCE_IMAGE}" "${TARGET_IMAGE}:${TAG}"
+            docker push "${TARGET_IMAGE}:${TAG}"
+          }
+
+          # 1. Push version tag to Docker Hub
+          if [ -n "${DOCKERHUB_USERNAME}" ]; then
+            echo "=== Pushing version tag to Docker Hub ==="
+            push_tag "${DOCKERHUB_IMAGE}" "${DOCKER_TAG}"
+          else
+            echo "::warning::Docker Hub credentials not configured, skipping Docker Hub push"
           fi
-          echo "images<<EOF" >> $GITHUB_OUTPUT
-          echo "$IMAGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.images.outputs.images }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=stable
-            type=raw,value=latest
-          labels: |
-            org.opencontainers.image.title=${{ matrix.service }}
-            org.opencontainers.image.description=YARMCP - Yet Another Repo MCP
-            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # 2. For stable (non-prerelease): push extra tags to GHCR + Docker Hub
+          if [ "${IS_PRERELEASE}" != "true" ]; then
+            echo "=== Pushing extra tags (stable release) ==="
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-          build-args: |
-            VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TYPE=release
+            # Extract major.minor
+            VERSION_CLEAN="${DOCKER_TAG#v}"
+            if [[ "${VERSION_CLEAN}" =~ ^([0-9]+)\.([0-9]+) ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
 
-  create-release:
-    needs: build-and-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+              push_tag "${GHCR_IMAGE}" "${MAJOR}.${MINOR}"
+              push_tag "${GHCR_IMAGE}" "${MAJOR}"
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+              if [ -n "${DOCKERHUB_USERNAME}" ]; then
+                push_tag "${DOCKERHUB_IMAGE}" "${MAJOR}.${MINOR}"
+                push_tag "${DOCKERHUB_IMAGE}" "${MAJOR}"
+              fi
+            fi
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          draft: true
-          # Check if version contains hyphen (indicates prerelease: alpha, beta, rc, etc.)
-          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
-          body: |
-            ## Docker Images
+            push_tag "${GHCR_IMAGE}" "stable"
+            push_tag "${GHCR_IMAGE}" "latest"
 
-            This release is available on Docker Hub and GitHub Container Registry:
+            if [ -n "${DOCKERHUB_USERNAME}" ]; then
+              push_tag "${DOCKERHUB_IMAGE}" "stable"
+              push_tag "${DOCKERHUB_IMAGE}" "latest"
+            fi
+          else
+            echo "=== Prerelease: skipping stable/latest/major/minor tags ==="
+          fi
 
-            ### Docker Hub (recommended)
-            ```bash
-            docker pull ${{ vars.DOCKERHUB_USERNAME || 'sunnamed434' }}/yarmcp-mcp:${{ steps.version.outputs.tag }}
-            docker pull ${{ vars.DOCKERHUB_USERNAME || 'sunnamed434' }}/yarmcp-updater:${{ steps.version.outputs.tag }}
-            ```
-
-            ### GitHub Container Registry (also available)
-            ```bash
-            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-mcp:${{ steps.version.outputs.tag }}
-            docker pull ghcr.io/${{ github.repository_owner }}/yarmcp-updater:${{ steps.version.outputs.tag }}
-            ```
-
-            ## Installation
-
-            See [example/README.md](example/README.md) for full deployment instructions.
+          echo "=== Done ==="
