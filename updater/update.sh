@@ -66,7 +66,14 @@ for i in $(seq 0 $((REPOS_COUNT - 1))); do
         UPDATE_BRANCH="$BRANCH"
         if [ -z "$UPDATE_BRANCH" ] || [ "$UPDATE_BRANCH" = "null" ]; then
             # No branch specified, use current branch
-            UPDATE_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            UPDATE_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>&1)
+            GIT_EXIT=$?
+            if [ $GIT_EXIT -ne 0 ]; then
+                error "Failed to get current branch for $NAME (exit code: $GIT_EXIT)"
+                echo "$UPDATE_BRANCH" >&2
+                ((FAIL_COUNT++)) || true
+                continue
+            fi
             log "Using current branch: $UPDATE_BRANCH"
         fi
 
@@ -88,7 +95,8 @@ for i in $(seq 0 $((REPOS_COUNT - 1))); do
             fi
         else
             error "Failed to fetch updates for $NAME (exit code: $FETCH_EXIT)"
-            error "Git fetch output: $FETCH_OUTPUT"
+            error "Git fetch output:"
+            echo "$FETCH_OUTPUT" >&2
             error "Branch: $UPDATE_BRANCH"
             ((FAIL_COUNT++)) || true
         fi
@@ -125,7 +133,8 @@ for i in $(seq 0 $((REPOS_COUNT - 1))); do
                 ((SUCCESS_COUNT++)) || true
             else
                 error "Failed to clone $NAME (exit code: $CLONE_EXIT)"
-                error "Git clone output: $CLONE_OUTPUT"
+                error "Git clone output:"
+                echo "$CLONE_OUTPUT" >&2
                 error "URL: $URL, Branch: $BRANCH"
                 ((FAIL_COUNT++)) || true
             fi
@@ -142,7 +151,8 @@ for i in $(seq 0 $((REPOS_COUNT - 1))); do
                 ((SUCCESS_COUNT++)) || true
             else
                 error "Failed to clone $NAME (exit code: $CLONE_EXIT)"
-                error "Git clone output: $CLONE_OUTPUT"
+                error "Git clone output:"
+                echo "$CLONE_OUTPUT" >&2
                 error "URL: $URL"
                 ((FAIL_COUNT++)) || true
             fi
