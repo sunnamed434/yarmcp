@@ -2,6 +2,11 @@
 
 **Y**et **A**nother **R**epo **MCP** - Self-hosted MCP server that clones git repos to your server, giving AI assistants fast access to up-to-date source code without hitting GitHub API limits or needing multiple repo clones per project.
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/sunnamed434/yarmcp-mcp)](https://hub.docker.com/r/sunnamed434/yarmcp-mcp)
+[![Docker Image Size](https://img.shields.io/docker/image-size/sunnamed434/yarmcp-mcp/latest)](https://hub.docker.com/r/sunnamed434/yarmcp-mcp)
+[![Docker Image Version](https://img.shields.io/docker/v/sunnamed434/yarmcp-mcp)](https://hub.docker.com/r/sunnamed434/yarmcp-mcp)
+[![GHCR](https://ghcr-badge.egpl.dev/sunnamed434/yarmcp-mcp/latest_tag?trim=major&label=GHCR&ignore=edge,dev)](https://github.com/sunnamed434/yarmcp/pkgs/container/yarmcp-mcp)
+
 ## Use Cases
 
 **You're using AI (Claude Code, Cursor, Claude.ai web, ChatGPT, Copilot, etc.) and want to ask:** "How does the latest React Router v7 handle data loading?"
