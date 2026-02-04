@@ -1,0 +1,59 @@
+name: Get Version
+description: >
+  Extract version from git tag. Produces a Docker-safe tag and a full
+  SemVer version (with commit hash) for OCI labels.
+
+outputs:
+  docker_tag:
+    description: 'Docker-safe version tag (e.g., 1.0.0 or 1.0.0-beta.1) -- no + character'
+    value: ${{ steps.version.outputs.docker_tag }}
+  full_version:
+    description: 'Full version with commit hash for OCI labels (e.g., 1.0.0+abc1234)'
+    value: ${{ steps.version.outputs.full_version }}
+  is_prerelease:
+    description: 'true if version contains a hyphen (e.g., 1.0.0-beta.1)'
+    value: ${{ steps.version.outputs.is_prerelease }}
+
+runs:
+  using: composite
+  steps:
+    - name: Extract version from tag
+      id: version
+      shell: bash
+      run: |
+        # Use release tag_name for "release published" event, otherwise GITHUB_REF_NAME
+        RAW_TAG="${GITHUB_REF_NAME}"
+        if [ "${{ github.event_name }}" = "release" ]; then
+          RAW_TAG="${{ github.event.release.tag_name }}"
+        fi
+
+        # Strip optional 'v' prefix
+        VERSION="${RAW_TAG#v}"
+
+        # Validate semver format
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          echo "::error::Tag '$RAW_TAG' does not look like a semantic version"
+          exit 1
+        fi
+
+        # Docker tag = version without + (+ is invalid in Docker tags)
+        DOCKER_TAG="${VERSION}"
+
+        # Full version = version + short commit hash (for OCI labels only)
+        SHORT_SHA="${GITHUB_SHA::7}"
+        FULL_VERSION="${VERSION}+${SHORT_SHA}"
+
+        # Prerelease detection: contains hyphen (e.g., 1.0.0-beta.1)
+        if [[ "$VERSION" == *-* ]]; then
+          IS_PRERELEASE="true"
+        else
+          IS_PRERELEASE="false"
+        fi
+
+        echo "docker_tag=${DOCKER_TAG}" >> $GITHUB_OUTPUT
+        echo "full_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
+        echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
+
+        echo "::notice::Docker tag: ${DOCKER_TAG}"
+        echo "::notice::Full version: ${FULL_VERSION}"
+        echo "::notice::Is prerelease: ${IS_PRERELEASE}"
