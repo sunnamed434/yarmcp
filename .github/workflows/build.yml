@@ -1,10 +1,11 @@
-name: Build MCP Server
+name: Build and Push Dev Images
 
 on:
   push:
     branches: [master]
     paths:
       - 'mcp-server/**'
+      - 'updater/**'
   workflow_dispatch:
 
 jobs:
@@ -13,14 +14,24 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - service: yarmcp-mcp
+            context: ./mcp-server
+          - service: yarmcp-updater
+            context: ./updater
 
     steps:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/docker-build-push
         with:
-          service_name: yarmcp-mcp
-          context_path: ./mcp-server
+          service_name: ${{ matrix.service }}
+          context_path: ${{ matrix.context }}
           ghcr_token: ${{ secrets.GITHUB_TOKEN }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          build_mode: dev
+          build_args: |
+            BUILD_TYPE=dev
