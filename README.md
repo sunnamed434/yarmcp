@@ -62,10 +62,12 @@ Option 3: Use YARMCP
 | Solution | Setup | Tools | Private Repos | File Suggestions | Rate Limits | Best For |
 |----------|-------|-------|---------------|-----------------|-------------|----------|
 | **YARMCP** | Docker | 8 tools | ✓ PAT/SSH | ✓ Yes | None | Any AI client, private repos, teams |
+| **Context7** | Zero setup | 2 tools | Paid only | ✗ No | 1,000/mo free | Library docs lookup |
 | **GitHub MCP** | Docker/Cloud | 51 tools | ✓ PAT/OAuth | ✗ No | 5,000/hour | GitHub platform features |
 | **git-mcp** | Zero setup | 4 tools | ✗ Public only | ✗ No | GitHub API | Quick public repo docs |
 | **git-mcp-server** | npm/bun | 27 tools | ✓ JWT/OAuth | ✗ No | None | Full Git operations |
 | **Local clones** | Manual | N/A | ✓ Manual | N/A | None | Single project |
+
 
 ## Quick Start
 
